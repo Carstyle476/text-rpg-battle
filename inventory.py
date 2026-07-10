@@ -22,45 +22,56 @@ ITEM_WEIGHTS: dict[str, float] = {
     "musket bullet": 0.2
 }
 
+DISPLAY_INDENT: int = 3
+
 # inventory class: stores items and their quantities while taking their weights into account
 class Inventory:
 
-    def __init__(self: object, capacity: float, items: dict[str, int] = {}) -> object:
+    def __init__(self, capacity: float, items: dict[str, int] | None = None) -> None:
         self.capacity: float = capacity
-        self.items: dict[str, int] = items
+        self.items: dict[str, int] = items if items is not None else {}
         self.cleanup()
 
     # valid python representation
-    def __repr__(self: object) -> str:
-        result: str = f"Inventory({self.capacity}" + "{"
-        for item in self.items: result += "{item}: {self.items[item]}, "
-        return result + "})"
+    def __repr__(self) -> str:
+        default: str = f"Inventory({self.capacity}, {{"
+        result: str = default
+        counter: int = 0
+        for item in self.items:
+            result += f"'{item}': {self.items[item]}{', ' if counter < len(self.items) - 1 else '}'}"
+            counter += 1
+        return (default + "}" if result is default else result) + ")"
 
     # cleaner string for display
-    def __str__(self: object) -> str:
-        result: str = "{"
-        for item in self.items: result += f"\n  {item}: {self.items[item]},"
-        return f"{result}{'\n' if result != '{' else ''}" + "}"
+    def __str__(self) -> str:
+        default: str = " " * DISPLAY_INDENT + "{"
+        result: str = default
+        counter: int = 0
+        for item in self.items:
+            result += f"\n{" " * (DISPLAY_INDENT + 1)}{item}: {self.items[item]}{',' if counter < len(self.items) - 1 else ''}"
+            counter += 1
+        return f"{result}{'\n' + " " * DISPLAY_INDENT if result is not default else ''}}}"
     
     # delete items with 0 or less quantity
-    def cleanup(self: object) -> None:
+    def cleanup(self) -> None:
         to_delete: list[str] = []
         for item in self.items:
             if self.items[item] <= 0: to_delete.append(item)
         for item in to_delete: self.items.pop(item)
 
-    def quantity(self: object, item: str) -> int:
+    def quantity(self, item: str) -> int:
         self.cleanup()
-        try: return self.items[item]
-        except KeyError: raise InventoryError(f"{item} not in inventory")
+        return 0 if not(item in self.items) else self.items[item]
     
-    def remove(self: object, item: str, quantity: int = 1) -> None:
+    def remove(self, item: str, quantity: int = 1) -> None:
+        if quantity <= 0: raise InventoryError("Quantity argument must be positive")
         selected_qty: int = self.quantity(item)
         if quantity > selected_qty: raise InventoryError(f"Quantity too large: {quantity}, only {selected_qty} of {item} exist")
         self.items[item] -= quantity
         self.cleanup()
 
-    def add(self: object, item: str, quantity: int = 1) -> None:
+    def add(self, item: str, quantity: int = 1) -> None:
+        if quantity <= 0: raise InventoryError("Quantity argument must be positive")
         self.cleanup()
         weight: float = (ITEM_WEIGHTS[item] if item in ITEM_WEIGHTS else 1) * quantity
         for existing in self.items:
