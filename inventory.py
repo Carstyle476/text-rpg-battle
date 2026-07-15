@@ -58,15 +58,13 @@ class Inventory:
             counter += 1
         return result + ("}" if result == default else (f"\n\n{DISPLAY_INDENT}Capacity: {self.weight()}/{self.capacity}\n}}" if self.capacity > 0 else "\n}"))
 
-    # for saving to json-readable
+    # for saving data
     @staticmethod
-    def save(target: Inventory) -> dict[str, any]: return {"capacity": target.capacity, "items": dict(target.items)}
+    def save(target: Inventory) -> dict: return dict(target.items)
 
-    # for loading from json-readable
+    # for loading data
     @staticmethod
-    def load(json_readable: dict[str, any]) -> Inventory:
-        if type(json_readable) != dict or len(json_readable) != 2: raise ValueError("JSON-readable input does not seem to be of type Inventory")
-        return Inventory(json_readable["capacity"], json_readable["items"])
+    def load(data: dict) -> Inventory: return Inventory(data["capacity"], data["items"])
     
     # delete items with 0 or less quantity
     def cleanup(self) -> None:

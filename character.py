@@ -74,7 +74,7 @@ class Character:
         self.regen: float = regen
 
         self.weapon: tuple[str, bool] = weapon if weapon is not None else ("", False)
-        if not(check_weapon(self.weapon[0])): raise ValueError(f"{item_display(weapon[0], 1, True)}{INVALID_WEAPON}")
+        if not(check_weapon(self.weapon[0])): raise ValueError(f"{item_display(self.weapon[0], 1, True)}{INVALID_WEAPON}")
         self.armor_set: set[str] = armor_set if armor_set is not None else set()
         for armor in self.armor_set:
             if not(check_armor(armor)): raise ValueError(f"{item_display(armor + ('s' if ARMOR_REDUCTIONS[armor][1] else ''), 1, True)}{INVALID_ARMOR}")
@@ -106,7 +106,7 @@ class Character:
 
     # for saving to json-readable
     @staticmethod
-    def save(target: Character) -> dict[str, any]:
+    def save(target: Character) -> dict:
         return {
             "name": target.name,
             "hp_cap": target.hp_cap,
@@ -120,8 +120,8 @@ class Character:
 
     # for loading from json-readable
     @staticmethod
-    def load(json_readable: dict[str, any]) -> Character:
-        if type(json_readable) != dict or len(json_readable) != 8: raise ValueError("JSON-readable input does not seem to be of type Character")
+    def load(json_readable: dict) -> Character:
+        if len(json_readable) != 8: raise ValueError("JSON-readable input does not seem to be of type Character")
         return Character(
             json_readable["name"],
             json_readable["hp_cap"],
