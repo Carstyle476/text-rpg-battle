@@ -66,7 +66,7 @@ class Character:
 
     def __init__(self, name: str, hp_cap: float, hp: float, strength: float, regen: float = 0, weapon: tuple[str, bool] | None = None, armor_set: set[str] | None = None, inventory: Inventory | None = None) -> None:
         if name == "": raise ValueError("You have to give every Character a name!")
-        self.name: str = name
+        self.name: str = name.capitalize()
 
         self.hp_cap: float = hp_cap
         self.hp: float = hp_cap if hp < 0 or hp > hp_cap else hp
@@ -101,7 +101,7 @@ class Character:
   Current weapon: {self.weapon[0] if self.weapon[0] != '' else 'None'}
   Dual-wielding: {'Yes' if self.weapon[1] else 'No'}
   Currently worn armor pieces:{armor_display}
-  Inventory:{'\n    ' if (self.inventory.is_empty()) else ' '}{str(self.inventory).replace('\n', '\n    ')}
+  Inventory:{'\n    ' if not(self.inventory.is_empty()) else ' '}{str(self.inventory).replace('\n', '\n    ')}
 """
 
     # for saving to json-readable
@@ -120,17 +120,17 @@ class Character:
 
     # for loading from json-readable
     @staticmethod
-    def load(json_readable: dict) -> Character:
-        if len(json_readable) != 8: raise ValueError("JSON-readable input does not seem to be of type Character")
+    def load(data: dict) -> Character:
+        if len(data) != 8: raise ValueError("Data does not seem to be of type Character")
         return Character(
-            json_readable["name"],
-            json_readable["hp_cap"],
-            json_readable["hp"],
-            json_readable["strength"],
-            json_readable["regen"],
-            tuple(json_readable["weapon"]),
-            set(json_readable["armor_set"]),
-            Inventory.load(json_readable["inventory"])
+            data["name"],
+            data["hp_cap"],
+            data["hp"],
+            data["strength"],
+            data["regen"],
+            tuple(data["weapon"]),
+            set(data["armor_set"]),
+            Inventory.load(data["inventory"])
         )
 
     # equip a weapon

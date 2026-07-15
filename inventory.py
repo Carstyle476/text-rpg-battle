@@ -64,7 +64,9 @@ class Inventory:
 
     # for loading data
     @staticmethod
-    def load(data: dict) -> Inventory: return Inventory(data["capacity"], data["items"])
+    def load(data: dict) -> Inventory:
+        if len(data) != 2: raise ValueError("Data does not seem to be of type Inventory")
+        return Inventory(data["capacity"], data["items"])
     
     # delete items with 0 or less quantity
     def cleanup(self) -> None:
