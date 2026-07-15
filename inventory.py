@@ -60,7 +60,7 @@ class Inventory:
 
     # for saving data
     @staticmethod
-    def save(target: Inventory) -> dict: return dict(target.items)
+    def save(target: Inventory) -> dict: return {"capacity": target.capacity, "items": target.items}
 
     # for loading data
     @staticmethod

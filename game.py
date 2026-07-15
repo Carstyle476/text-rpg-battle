@@ -47,11 +47,13 @@ def drops(drop_list: list[tuple[str, int, float]], capacity: int = 20) -> Invent
 # true = all good
 # false = not good
 def save(state: dict, file: str, dont_ask: bool = False) -> bool:
+    saveable: dict = dict(state)
+    if "player" in saveable: saveable["player"] = Character.save(saveable["player"])
     try:
-        with open(file, mode = "x") as save_file: save_file.write(dumps(state))
+        with open(file, mode = "x") as save_file: save_file.write(dumps(saveable))
     except FileExistsError:
         if dont_ask or input("\nSave file already exists\nDo you want to overwrite it? (y/n)\n>>> ").lower().strip() == "y":
-            with open(file, mode = "w") as save_file: save_file.write(dumps(state))
+            with open(file, mode = "w") as save_file: save_file.write(dumps(saveable))
             return True
         return False
     except OSError as e:
@@ -62,7 +64,7 @@ def save(state: dict, file: str, dont_ask: bool = False) -> bool:
 def load(file: str) -> dict:
     with open(file, mode = "r") as save_file:
         loaded: dict = loads(save_file.read())
-        if "player" in loaded: loaded["player"] = player_ref = Character.load(loaded["player"])
+        if "player" in loaded: loaded["player"] = Character.load(loaded["player"])
         if "dont encounter" in loaded: loaded["dont encounter"] = True
         return loaded
 
@@ -569,7 +571,7 @@ SW S SE
                     if at_place and battle_result == 1 or not(at_place):
                         state["search_x"] = x
                         state["search_y"] = y
-                        state["dont encounter"] = True
+                        if at_place: state["dont encounter"] = True
             elif choice == 1: manage(player)
             elif choice == 2:
                 result: dict = options(state)
