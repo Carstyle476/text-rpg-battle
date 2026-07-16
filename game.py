@@ -57,7 +57,7 @@ def save(state: dict, file: str, dont_ask: bool = False) -> bool:
             return True
         return False
     except OSError as e:
-        print("\nCould not save file\n{repr(e)}")
+        print(f"\nCould not save file\n{repr(e)}")
         return False
     return True
 
@@ -69,13 +69,14 @@ def load(file: str) -> dict:
         return loaded
 
 # keep asking user for save name if invalid
-def load_safely() -> dict[str, bool | int | Character]:
+def load_safely() -> dict:
     while True:
         given_name: str = input("\nEnter save name (leave blank to cancel)\n>>> ")
         if given_name == "": return {"retry": True}
         try: return load(f"{given_name}{EXTENSION}")
         except JSONDecodeError: print("\nSave file is corrupted, please make a new save")
-        except (OSError, FileNotFoundError): print("\nFile not found, please try again")
+        except FileNotFoundError: print("\nFile not found, please try again")
+        except OSError as e: print(f"\nCould not load file\n{repr(e)}")
 
 
 # get int input for options (the main method of playing the game)
@@ -145,7 +146,7 @@ def menu(welcome: bool = True) -> dict:
             name = input("\nWhat's your name, traveller?\n(leave blank to cancel)\n>>> ").strip()
             if name == "": return {"retry": True}
         
-        new_game: dict[str, bool | int | Character] = {
+        new_game: dict = {
             "player": Character(name, 100, 100, 10),
             "px": 0,
             "py": len(WORLD_MAP.split("\n")) - 1,
@@ -154,6 +155,7 @@ def menu(welcome: bool = True) -> dict:
             "encounter": 0,
             "autosave": input("\nDo you want to enable autosave?\nEvery action will be saved automatically without asking (y/n)\n>>> ").lower().strip() == "y",
             "dont encounter": True,
+            "just visited": False,
             "visited bandits": False,
             "first": True,
             "finished boss": False,
@@ -211,8 +213,7 @@ def manage(player: Character, outside: Inventory | None = None, in_battle: bool 
     INVALID: str = "You can't do that\n"
     
     if outside is None: outside = Inventory(capacity = -1)
-    
-    choice: int = -1
+
     msg: str = ""
     while True:
         print(f"\nINVENTORY MANAGEMENT")
@@ -449,6 +450,37 @@ def village(player: Character) -> None:
         player.hp = player.hp_cap
 
 
+def enter_place(state: dict, player: Character, at: str) -> tuple[str, int]:
+    msg: str = ""
+    result: int = 0
+
+    if   at == VILLAGE: village(player)
+    elif at == BANDITS:
+        battle_result = battle(player, [
+            create_hard("Bandit", weapon = ("flintlock", False), inventory = Inventory(items = {"flintlock bullet": 6, "coin": 10})),
+            create_hard("Bandit", weapon = ("sword", False), inventory = Inventory(items = {"bandage": 3, "healing potion": 1})),
+        ])
+        state["visited bandits"] = True
+    elif at == DEFENSES:
+        if state["actually finished"]: msg = "Do not fear, for your guards are free of the wizard's trance\n"
+        else:
+            battle_result = battle(player, [
+                create_beast("Dragon"),
+                create_hard("Guard", weapon = ("musket", False), armor = {"helmet", "chestplate", "legging", "arm pad", "boot", "shield"}, inventory = Inventory(items = {"musket bullet": 15, "healing potion": 1})),
+                create_hard("Guard", weapon = ("axe", True), armor = {"helmet", "chestplate", "legging", "arm pad", "boot", "shield"}, inventory = Inventory(items = {"healing potion": 3}))
+            ])
+    else:
+        if state["actually finished"]: msg = f"You have already defeated the evil wizard!\n"
+        else:
+            battle_result = battle(player, [
+                create_boss("Evil Wizard", weapon = ("magic staff", False), inventory = Inventory(items = {"coin": 100, "ring": 1}))
+            ])
+            state["finished boss"] = battle_result == 1
+
+    state["just visited"] = True
+    return (msg, result)
+
+
 # put it all together
 # False = return to menu
 # True = exit
@@ -500,7 +532,11 @@ Everything becomes bright, blinding almost, and he falls over onto the grass.
 "The castle has ceramic tiling..."
 
 To the north, he can see the lush green forest.
-To the east, he can see the deep blue ocean.
+To the east, he can see the deep blue ocean,
+with the waves chipping at a lone village further north.
+
+Further northeast, the ruler's grand castle sits in the safety of high walls,
+each wall boasting a large dragon to fend off intruders.
 
 As he pulls himself back together, cape firmly dirtied by the fall,
 the severity of the situation finally begins to show.
@@ -519,8 +555,11 @@ before anything worse happens to his people.
     msg: str = ""
     battle_result: int = -2
     while not(state["finished boss"]):
-
         player: Character = state["player"]
+        if battle_result == -1: state = lose(player.name)
+        elif battle_result >= 0 or state["autosave"]: save(state, f"{player.name}{EXTENSION}", state["autosave"])
+        battle_result = -2
+
         map_with_player: str = "\n"
         x: int = state["px"]
         y: int = state["py"]
@@ -577,8 +616,15 @@ before anything worse happens to his people.
             state["dont encounter"] = True
             continue
 
+        msg = ""
+        if at_place and not(state["just visited"]):
+            enter_result: tuple[str, int] = enter_place(state, player, at)
+            msg = enter_result[0]
+            battle_result = enter_result[1]
+        elif state["just visited"]: state["just visited"] = False
+
         print(
-map_with_player + (f"""
+map_with_player + f"""
 \nLegend:
  @ - You
  {CASTLE} - The Castle
@@ -590,44 +636,24 @@ map_with_player + (f"""
 \n{msg}Pick a direction, or select an action:
 
 NW N NE
-   |        0 - {'Enter' if at_place else 'Search'}
+   |        0 - {'Enter landmark' if at_place else 'Search area'}
 W--@--E     1 - Management
    |        2 - Options
 SW S SE
-""" if not(trigger_encounter) else "")
+"""
         )
 
         raw: str = input().lower().strip()
 
-        msg = ""
         if raw.isdigit():
             choice: int = int(raw)
             if choice == 0:
                 if state["search_x"] == x and state["search_y"] == y: msg = "You can't search the same spot again\nGo somewhere else\n"
                 else:
                     if at_place:
-                        if   at == VILLAGE: village(player)
-                        elif at == BANDITS:
-                            battle_result = battle(player, [
-                                create_hard("Bandit", weapon = ("flintlock", False), inventory = Inventory(items = {"flintlock bullet": 6, "coin": 10})),
-                                create_hard("Bandit", weapon = ("sword", False), inventory = Inventory(items = {"bandage": 3, "healing potion": 1})),
-                            ])
-                            state["visited bandits"] = True
-                        elif at == DEFENSES:
-                            if state["actually finished"]: msg = "Do not fear, for your guards are free of the wizard's trance\n"
-                            else:
-                                battle_result = battle(player, [
-                                    create_beast("Dragon"),
-                                    create_hard("Guard", weapon = ("musket", False), armor = {"helmet", "chestplate", "legging", "arm pad", "boot", "shield"}, inventory = Inventory(items = {"musket bullet": 15, "healing potion": 1})),
-                                    create_hard("Guard", weapon = ("axe", True), armor = {"helmet", "chestplate", "legging", "arm pad", "boot", "shield"}, inventory = Inventory(items = {"healing potion": 3}))
-                                ])
-                        else:
-                            if state["actually finished"]: msg = f"You have already defeated the evil wizard!\n"
-                            else:
-                                battle_result = battle(player, [
-                                    create_boss("Evil Wizard", weapon = ("magic staff", False), inventory = Inventory(items = {"coin": 100, "ring": 1}))
-                                ])
-                                state["finished boss"] = battle_result == 1
+                        enter_result: tuple[str, int] = enter_place(state, player, at)
+                        msg = enter_result[0]
+                        battle_result = enter_result[1]
                     else: manage(player, drops(SEARCH_DROPS, -1))
 
                     if at_place and battle_result == 1 or not(at_place):
@@ -676,13 +702,8 @@ SW S SE
 
         if not(state["dont encounter"]): state["dont encounter"] = msg != "" or raw == "" or at_place
         if not(state["dont encounter"]) or at_place: player.hp = min(player.hp_cap, player.hp + PASSIVE_HEAL)
-
-        if battle_result == -1: state = lose(player.name)
-        elif battle_result >= 0 or state["autosave"]: save(state, f"{player.name}{EXTENSION}", state["autosave"])
-        battle_result = -2
-
-    if state["finished boss"] and not(state["actually finished"]):
-        if save(state, f"{player.name}{EXTENSION}", state["autosave"]):
+    else:
+        if save(state, f"{player.name}{EXTENSION}", state["autosave"]) and not(state["actually finished"]):
             player: Character = state["player"]
             sleep(1)
             print(
@@ -707,7 +728,7 @@ Thank you for playing my game!
             sleep(1)
             input("Hit enter to continue\n")
             state["actually finished"] = True
-            state["finished boss"] = True
+            state["finished boss"] = False
 
     return False
 
