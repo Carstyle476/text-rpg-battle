@@ -8,9 +8,10 @@ from json import dumps, loads, JSONDecodeError
 from random import random, randint
 from time import sleep
 from typing import Callable
+from pathlib import Path
 
 
-EXTENSION: str = ".save"
+EXTENSION: str = ".save" # NOTE: DO NOT MAKE THIS BLANK OR ELSE THE LOAD SYSTEM WILL BREAK
 PASSIVE_HEAL: int = 5
 
 RAND_ENCOUNTER_MAX_LOOSE: int = 3 # i call this a "loose requirement", swarm enemies can push over this limit
@@ -44,6 +45,22 @@ def drops(drop_list: list[tuple[str, int, float]], capacity: int = 20) -> Invent
     return result
 
 
+# get int input for options (the main method of playing the game)
+# no fancy text commands, sorry about that
+def get_input(ask: str, options: list[str]) -> int:
+    amt: int = len(options)
+    
+    while True:
+        print(ask)
+        for i in range(amt): print(f"{str(i).ljust(len(str(amt - 1)))} - {options[i]}")        
+        raw: str = input("\n").strip()
+
+        if raw != "" and raw.isdigit():
+            num: int = int(raw)
+            if num < amt: return num
+        print("\nInvalid input, try again...")
+
+
 # save/load game state
 # true = all good
 # false = not good
@@ -70,31 +87,16 @@ def load(file: str) -> dict:
         loaded["dont visit"] = True
         return loaded
 
-# keep asking user for save name if invalid
-def load_safely() -> dict:
+def load_menu() -> dict:
+    CANCEL: str = "Cancel"
     while True:
-        given_name: str = input("\nEnter save name (leave blank to cancel)\n>>> ")
-        if given_name == "": return {"retry": True}
-        try: return load(f"{given_name}{EXTENSION}")
+        options: list[str] = [str(file) for file in Path().glob(f"*{EXTENSION}")]
+        options.insert(0, CANCEL)
+        name: str = options[get_input("\nSelect a file to load:\n", options)]
+        if name == CANCEL: return {"retry": True}
+        try: return load(name)
         except JSONDecodeError: print("\nSave file is corrupted, please make a new save")
-        except FileNotFoundError: print("\nFile not found, please try again")
         except OSError as e: print(f"\nCould not load file\n{repr(e)}")
-
-
-# get int input for options (the main method of playing the game)
-# no fancy text commands, sorry about that
-def get_input(ask: str, options: list[str]) -> int:
-    amt: int = len(options)
-    
-    while True:
-        print(ask)
-        for i in range(amt): print(f"{str(i).ljust(len(str(amt - 1)))} - {options[i]}")        
-        raw: str = input("\n").strip()
-
-        if raw != "" and raw.isdigit():
-            num: int = int(raw)
-            if num < amt: return num
-        print("\nInvalid input, try again...")
 
 
 # if this returns negative then cancel whatever it's for
@@ -180,7 +182,7 @@ f"""
         successful: bool = save(new_game, f"{name}{EXTENSION}", False)
         if not(successful): return {"retry": True}
         return new_game
-    if choice == 2: return load_safely()
+    if choice == 2: return load_menu()
     if choice == 3:
         print(
 """
@@ -241,7 +243,7 @@ Game settings
         if choice == 0: return {}
         if choice == 1: save(state, f"{state['player'].name}{EXTENSION}")
         if choice == 2:
-            attempt: dict = load_safely()
+            attempt: dict = load_menu()
             if not("retry" in attempt): return attempt
         if choice == 3:
             state["autosave"] = not(state["autosave"])
