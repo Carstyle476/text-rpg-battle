@@ -21,8 +21,8 @@ DUAL_WIELD_CHANCE: float = 0.15
 
 APPLY_ARMOR_CHANCE: float = 0.1 # per armor piece
 
-ENCOUNTER_CHANCE_LOW: float = 0.1
-ENCOUNTER_CHANCE_HIGH: float = 0.2
+ENCOUNTER_CHANCE_LOW: float = 0.15
+ENCOUNTER_CHANCE_HIGH: float = 0.3
 
 DEATH_THRESHOLD: float = 1
 
@@ -523,7 +523,7 @@ Do some trading with the villagers
 
             possible_trades: list[tuple[tuple[int, str], tuple[int, str]]] = []
             for trade in section.trades:
-                if trade[0][1] == offer[1] and offer[0] % trade[0][0] == 0 and trade[0][0] <= offer[0] or trade[1][1] == offer[1] and offer[0] % trade[1][0] == 0 and trade[1][0] <= offer[0]: possible_trades.append(trade)
+                if trade[0][1] == offer[1] and trade[0][0] <= offer[0] or trade[1][1] == offer[1] and trade[1][0] <= offer[0]: possible_trades.append(trade)
 
             if len(possible_trades) == 0: msg = "\nNo trades match your offer\n"
             else:
@@ -535,14 +535,16 @@ Do some trading with the villagers
 
                 rollback: bool = False
                 flipped: bool = offer[1] == trade[1][1]
+                this_side: tuple[int, str] = trade[1 if flipped else 0]
                 other_side: tuple[int, str] = trade[0 if flipped else 1]
+                mult: int = offer[0] // this_side[0]
                 try:
-                    player.inventory.remove(offer[1], offer[0])
+                    player.inventory.remove(this_side[1], this_side[0] * mult)
                     rollback = True
-                    player.inventory.add(other_side[1], other_side[0] * (offer[0] // trade[1 if flipped else 0][0]))
-                    msg = section.thanks + f"(You now have {item_display(other_side[1], player.inventory.items[other_side[1]]).lower()})\n"
+                    player.inventory.add(other_side[1], other_side[0] * mult)
+                    msg = section.thanks + f"(You gave {item_display(this_side[1], this_side[0] * mult).lower()} and now have {item_display(other_side[1], player.inventory.items[other_side[1]]).lower()})\n"
                 except InventoryError as e:
-                    if rollback: player.inventory.add(offer[1], offer[0])
+                    if rollback: player.inventory.add(this_side[1], this_side[0] * mult)
                     msg = f"\nYou can't do that\n{str(e)}\n"
 
 
@@ -557,7 +559,7 @@ def enter_place(state: dict, player: Character, at: str) -> tuple[str, int]:
         else:
             result = battle(player, [
                 create_hard("Bandit", weapon = ("flintlock", False), inventory = Inventory(items = {"flintlock bullet": 6, "coin": 10})),
-                create_hard("Bandit", weapon = ("sword", False), inventory = Inventory(items = {"bandage": 3, "healing potion": 1})),
+                create_hard("Bandit", weapon = ("sword", False), inventory = Inventory(items = {"bandage": 2, "healing potion": 1})),
             ])
             state["visited bandits"] = True
     elif at == DEFENSES:
@@ -788,7 +790,7 @@ map_with_player + f"""
 \n{msg}Pick a direction, or select an action:
 
 NW N NE
-   |        0 - {'Enter landmark' if at_place else 'Search area'}
+   |        0 - {'Enter place' if at_place else 'Search area'}
 W--@--E     1 - Management
    |        2 - Options
 SW S SE

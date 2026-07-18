@@ -6,8 +6,9 @@ This is the result.
 
 What this game has:
 - 5 main files
+- A map (duh...)
 - A story
-- Combat
+- Simple combat (which is actually kinda boring)
 - An inventory system
 - A trading system
 - Save/load

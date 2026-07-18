@@ -18,14 +18,14 @@ WEAPON_BONUSES: dict[str, tuple[float, str]] = {
     "slingshot": (5, "stone"),
     "dagger": (10, ""),
     "nunchucks": (15, ""),
-    "shuriken": (15, "shuriken"),
     "staff": (20, ""),
-    "bow": (20, "arrow"),
+    "shuriken": (25, "shuriken"),
+    "bow": (25, "arrow"),
 
     # stronger weapons
-    "mace": (30, ""),
-    "sword": (35, ""),
-    "axe": (40, ""),
+    "mace": (35, ""),
+    "sword": (40, ""),
+    "axe": (45, ""),
 
     # old guns
     "flintlock": (60, "flintlock bullet"),
@@ -47,9 +47,9 @@ ARMOR_REDUCTIONS: dict[str, tuple[float, bool]] = {
 }
 
 HEALING_ITEMS: dict[str, tuple[float, str]] = {
-    "healing potion": (40, "glass bottle"),
-    "pill": (25, ""),
-    "bandage": (10, "used bandage")
+    "healing potion": (35, "glass bottle"),
+    "pill": (15, ""),
+    "bandage": (5, "used bandage")
 }
 
 INFO_MENU_WIDTH: int = 38
@@ -281,11 +281,12 @@ class Character:
 
         # gain ability to regenerate more if defending (not attacking)
         # (game design is my passion!!!!!)
-        to_regen: float = min(self.hp_cap - self.hp, self.regen * (2 if not(attacking) else 1))
+        mult: int = 2 if not(attacking) else 1
+        to_regen: float = min(self.hp_cap - self.hp, self.regen * mult)
         if to_regen > 0:
             print(f"\n{self.name}{' also' if attacking else ''} regains {to_regen} HP!")
             self.hp += to_regen
-            self.regen -= min(to_regen, self.regen)
+            self.regen -= min(to_regen / mult, self.regen)
 
 
 def calculate_damage(char_a: Character, char_b: Character, defending: bool = False) -> float:

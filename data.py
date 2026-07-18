@@ -193,7 +193,7 @@ def create_medium(name: str, weapon: tuple[str, bool] | None = None, armor: set[
 def create_hard(name: str, weapon: tuple[str, bool] | None = None, armor: set[str] | None = None, inventory: Inventory | None = None) -> Character: return Character(name, 90, 90, 10, 0, weapon, armor, inventory)
 def create_swarm(name: str, weapon: tuple[str, bool] | None = None, armor: set[str] | None = None, inventory: Inventory | None = None) -> Character: return Character(name, 10, 10, 3, 0, weapon, armor, inventory)
 def create_beast(name: str, weapon: tuple[str, bool] | None = None, armor: set[str] | None = None, inventory: Inventory | None = None) -> Character: return Character(name, 250, 250, 50, 0, weapon, armor, inventory)
-def create_boss(name: str, weapon: tuple[str, bool] | None = None, armor: set[str] | None = None, inventory: Inventory | None = None) -> Character: return Character(name, 500, 500, 25, 0, weapon, armor, inventory)
+def create_boss(name: str, weapon: tuple[str, bool] | None = None, armor: set[str] | None = None, inventory: Inventory | None = None) -> Character: return Character(name, 1000, 1000, 25, 0, weapon, armor, inventory)
 
 
 ENCOUNTERS: dict[int, list[Character]] = {
@@ -219,42 +219,42 @@ ENCOUNTERS: dict[int, list[Character]] = {
     
     4:
     [
-        create_swarm("Imp", inventory = Inventory(items = {"iron": 1, "bandage": 2})),
-        create_swarm("Imp", inventory = Inventory(items = {"glass bottle": 1}))
+        create_swarm("Imp", inventory = Inventory(items = {"iron": 1, "used bandage": 1})),
+        create_swarm("Imp")
     ],
 
     5:
     [
         create_easy("Goblin", weapon = ("knife", False), armor = {"arm pad"}, inventory = Inventory(items = {"bandage": 1})),
-        create_swarm("Imp", weapon = ("stone", True), inventory = Inventory(items = {"healing potion": 1, "stone": 2}))
+        create_swarm("Imp", weapon = ("stone", True), inventory = Inventory(items = {"glass bottle": 1, "stone": 2}))
     ],
 
     6:
     [
-        create_hard("Thief", weapon = ("dagger", False), armor = {"chestplate"}, inventory = Inventory(items = {"bandage": 3}))
+        create_hard("Thief", weapon = ("dagger", False), armor = {"chestplate"}, inventory = Inventory(items = {"bandage": 2}))
     ],
 
     7:
     [
         create_medium("Orc", weapon = ("knife", True), armor = {"arm pad", "legging"}),
-        create_medium("Orc", weapon = ("knife", False), armor = {"helmet"}, inventory = Inventory(items = {"shuriken": 2}))
+        create_medium("Orc", weapon = ("knife", False), armor = {"helmet"}, inventory = Inventory(items = {"shuriken": 1}))
     ],
 
     8:
     [
-        create_hard("Archer", weapon = ("bow", False), armor = {"chestplate"}, inventory = Inventory(items = {"arrow": 15}))
+        create_hard("Archer", weapon = ("bow", False), armor = {"chestplate"}, inventory = Inventory(items = {"arrow": 10}))
     ],
 
     9:
     [
         create_easy("Goblin", weapon = ("dagger", False), inventory = Inventory(items = {"glass bottle": 1})),
         create_easy("Goblin", weapon = ("knife", True), inventory = Inventory(items = {"bandage": 2})),
-        create_easy("Goblin", weapon = ("sword", False), inventory = Inventory(items = {"wood": 3}))
+        create_easy("Goblin", weapon = ("sword", False), inventory = Inventory(items = {"wood": 2}))
     ],
 
     10:
     [
-        create_medium("Orc", weapon = ("mace", False), armor = {"chestplate"}, inventory = Inventory(items = {"iron": 2})),
+        create_medium("Orc", weapon = ("mace", False), armor = {"chestplate"}, inventory = Inventory(items = {"iron": 1})),
         create_easy("Goblin", weapon = ("dagger", False), inventory = Inventory(items = {"healing potion": 1})),
         create_easy("Goblin", weapon = ("dagger", False), inventory = Inventory(items = {"flintlock bullet": 1}))
     ],
