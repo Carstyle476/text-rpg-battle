@@ -54,7 +54,7 @@ class Inventory:
         counter: int = 0
 
         for item in self.items:
-            result += f"\n{DISPLAY_INDENT}{item}: {self.items[item]}{',' if counter < len(self.items) - 1 else ''}"
+            result += f"\n{DISPLAY_INDENT}{item_display(item, self.items[item])}{',' if counter < len(self.items) - 1 else ''}"
             counter += 1
         return result + ("}" if result == default else (f"\n\n{DISPLAY_INDENT}Capacity: {self.weight()}/{self.capacity}\n}}" if self.capacity > 0 else "\n}"))
 
@@ -91,7 +91,7 @@ class Inventory:
         if not(item in self.items): raise InventoryError(f"{item} is not in this inventory")
 
         selected_qty: int = self.items[item]
-        if quantity > selected_qty: raise InventoryError(f"Quantity too large ({quantity}); there's only {item_display(item, selected_qty)}")
+        if quantity > selected_qty: raise InventoryError(f"Quantity too large ({quantity}); there's only {item_display(item, selected_qty).lower()}")
         self.items[item] -= quantity
         self.cleanup()
 
@@ -100,5 +100,5 @@ class Inventory:
 
         # don't have to call self.cleanup() because self.weight() calls it
         total: float = self.weight() + (ITEM_WEIGHTS[item] if item in ITEM_WEIGHTS else 1) * quantity
-        if self.capacity > 0 and total > self.capacity: raise InventoryError(f"Not enough inventory capacity to add {item_display(item, quantity)} ({total}/{self.capacity})")
+        if self.capacity > 0 and total > self.capacity: raise InventoryError(f"Not enough inventory capacity to add {item_display(item, quantity).lower()} ({total}/{self.capacity})")
         self.items[item] = self.items[item] + quantity if item in self.items else quantity

@@ -32,19 +32,18 @@ WEAPON_BONUSES: dict[str, tuple[float, str]] = {
     "musket": (70, "musket bullet"),
 
     # magic!!!
-    "magic staff": (100, ""),
-    "ring": (150, "")
+    "magic staff": (150, "")
 }
 
 # 1 = full reduction, pieces stack
 # bool is for determining if it comes in pairs or not
 ARMOR_REDUCTIONS: dict[str, tuple[float, bool]] = {
-    "chestplate": (0.2, False),
     "shield": (0.2, False),
-    "legging": (0.15, True),
-    "helmet": (0.15, False),
-    "arm pad": (0.1, True),
-    "boot": (0.1, True)
+    "chestplate": (0.15, False),
+    "legging": (0.1, True),
+    "helmet": (0.1, False),
+    "arm pad": (0.05, True),
+    "boot": (0.05, True)
 }
 
 HEALING_ITEMS: dict[str, tuple[float, str]] = {
@@ -66,7 +65,8 @@ class Character:
 
     def __init__(self, name: str, hp_cap: float, hp: float, strength: float, regen: float = 0, weapon: tuple[str, bool] | None = None, armor_set: set[str] | None = None, inventory: Inventory | None = None) -> None:
         if name == "": raise ValueError("You have to give every Character a name!")
-        self.name: str = name.capitalize()
+        self.name: str = name
+        self.name = self.name[0].upper() + self.name[1:]
 
         self.hp_cap: float = hp_cap
         self.hp: float = hp_cap if hp < 0 or hp > hp_cap else hp
@@ -87,7 +87,7 @@ class Character:
     # admittedly MUCH more readable
     def __str__(self) -> str:
         armor_display = "\n"
-        for armor in self.armor_set: armor_display += f"   - {armor + ('s' if ARMOR_REDUCTIONS[armor][1] else '')}\n"
+        for armor in self.armor_set: armor_display += f"   - {item_display(armor + ('s' if ARMOR_REDUCTIONS[armor][1] else ''), 1)}\n"
         if armor_display == "\n": armor_display = " None\n"
 
         return f"""
@@ -98,8 +98,7 @@ class Character:
   Strength: {self.strength}
   Pending health regeneration: {self.regen} HP
 
-  Current weapon: {self.weapon[0] if self.weapon[0] != '' else 'None'}
-  Dual-wielding: {'Yes' if self.weapon[1] else 'No'}
+  Current weapon: {item_display(self.weapon[0], 2 if self.weapon[1] else 1) if self.weapon[0] != '' else 'None'}
   Currently worn armor pieces:{armor_display}
   Inventory:{'\n    ' if not(self.inventory.is_empty()) else ' '}{str(self.inventory).replace('\n', '\n    ')}
 """
@@ -176,7 +175,8 @@ class Character:
         if not(check_armor(desired)): raise ValueError(f"{item_display(desired + ('s' if ARMOR_REDUCTIONS[desired][1] else ''), 1, True)}{INVALID_ARMOR}")
 
         remove_count: int = 2 if ARMOR_REDUCTIONS[desired][1] else 1
-        self.inventory.remove(desired, remove_count)
+        try: self.inventory.remove(desired, remove_count)
+        except InventoryError: raise EquipmentError(f"You need a pair, not just 1 {desired}")
         before: int = len(self.armor_set)
         self.armor_set.add(desired)
 
@@ -199,7 +199,7 @@ class Character:
     # heal with the selected item, removing it from inventory
     # if specified, replace it with another item
     # (e.g., you have a glass bottle after using a healing potion)
-    def heal(self, item: str, regen: bool = False) -> None:
+    def heal(self, item: str, regen: bool = False) -> str:
         if not(item in HEALING_ITEMS): raise ValueError(f"{item_display(item, 1, True)} not a healing item")
 
         self.inventory.remove(item)
@@ -214,8 +214,8 @@ class Character:
         self.hp = min(self.hp_cap, self.hp + amount * (3 if not(regen) else 1))
         if regen: self.regen += amount
 
-        msg_suffix: str = '.' if not(regen) else f' and will regain {self.regen} more!\n(Pro tip: Defend on your next turn to regain more than usual)'
-        print(f"\n{self.name} heals {self.hp - before_hp} HP{msg_suffix}")
+        msg_suffix: str = '.' if not(regen) else f' and will regain {self.regen} more HP!\n(Pro tip: Defend on your next turn to be able to regain more HP than usual)'
+        return f"\n{self.name} heals {self.hp - before_hp} HP with a {item}{msg_suffix}\n"
 
     # play this character's turn
     # if target is specified, check it
@@ -251,10 +251,10 @@ class Character:
                 consumable_display: str = item_display(consumable, 2 if self.weapon[1] else 1).lower()
 
                 if not(consuming_self): print(f"\n{self.name}'s {weapon_display} going to use {consumable_display}!")
-                consumable_amt: int = self.inventory.items[consumable]
+                consumable_amt: int = 0 if not(consumable in self.inventory.items) else self.inventory.items[consumable]
                 if consumable_amt == 0:
                     if consuming_self: consume_weapon_amt = 2 if self.weapon[1] else 1
-                    else: raise InventoryError(f"{self.name}'s {weapon_display} out of {item_display(consumable, 2)[2:]}")
+                    else: raise EquipmentError(f"{self.name}'s {weapon_display} out of {item_display(consumable, 2)[2:]}")
                 elif consumable_amt == 1 and self.weapon[1]:
                     if consuming_self: consume_weapon_amt = 1
                     else:
@@ -262,13 +262,13 @@ class Character:
                         print(f"\n{self.name} is falling back to single-wield because only 1 {item_display(consumable, 0, True)} left!")
                 if consumable_amt > 0: self.inventory.remove(consumable, min(2 if self.weapon[1] else 1, consumable_amt))
 
-            damage: float = calculate_damage(self, target) / (2 if target_defending else 1)
+            damage: float = calculate_damage(self, target, target_defending)
             target.hp -= damage
             target.hp = round(target.hp, VALUE_ROUND)
 
             # i am NOT one-lining this bit of code
-            if self.weapon[1]: weapon_display = f" with dual-wielding {self.weapon[0] + ('s' if self.weapon[0][-1] != 's' else '')}"
-            elif self.weapon[0] != "": weapon_display = f" with a{'n' if self.weapon[0][0] in 'aeiou' else ''} {self.weapon[0]}"
+            if self.weapon[1]: weapon_display = f" with {item_display(self.weapon[0], 2 if self.weapon[1] else 1).replace("2", "dual-wielding").lower()}"
+            elif self.weapon[0] != "": weapon_display = f" with {item_display(self.weapon[0], 2 if self.weapon[1] else 1).lower()}"
             print(f"\n{self.name} attacks {target.name}{weapon_display} for {damage} damage!")
 
             if consume_weapon_amt == 2: self.weapon = ("", False)
@@ -288,8 +288,8 @@ class Character:
             self.regen -= min(to_regen, self.regen)
 
 
-def calculate_damage(char_a: Character, char_b: Character) -> float:
+def calculate_damage(char_a: Character, char_b: Character, defending: bool = False) -> float:
     raw_damage: float = char_a.strength + (WEAPON_BONUSES[char_a.weapon[0]][0] if char_a.weapon[0] in WEAPON_BONUSES else 0) * (2 if char_a.weapon[1] else 1)
     armor_reduct: float = 0
     for armor in char_b.armor_set: armor_reduct += ARMOR_REDUCTIONS[armor][0]
-    return round(raw_damage * max(0, 1 - armor_reduct), VALUE_ROUND)
+    return round(raw_damage * max(0, 1 - armor_reduct) / (2 if defending else 1), VALUE_ROUND)

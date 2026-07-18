@@ -33,12 +33,12 @@ SECTIONS: list[VillageSection] = [
         "\nHey there. What can I get for ya? I make the finest armor around here.",
         "\nHere ya go, thanks for stoppin' by!\n",
         [
-            ((3, "coin"), (1, "shield")),
-            ((3, "coin"), (1, "chestplate")),
-            ((2, "coin"), (1, "helmet")),
-            ((1, "coin"), (1, "arm pad")),
-            ((2, "coin"), (1, "legging")),
-            ((1, "coin"), (1, "boot")),
+            ((5, "coin"), (1, "shield")),
+            ((4, "coin"), (1, "chestplate")),
+            ((3, "coin"), (1, "helmet")),
+            ((3, "coin"), (1, "legging")),
+            ((2, "coin"), (1, "arm pad")),
+            ((2, "coin"), (1, "boot")),
             ((1, "iron"), (1, "coin"))
         ]
     ),
@@ -47,11 +47,11 @@ SECTIONS: list[VillageSection] = [
         "\nHey, welcome to my blacksmithing workplace, shop, thing... Whatever, need anything?",
         "\nHere it is. Stay safe!\n",
         [
-            ((4, "coin"), (1, "axe")),
-            ((3, "coin"), (1, "sword")),
-            ((3, "coin"), (1, "mace")),
-            ((2, "coin"), (1, "dagger")),
-            ((1, "coin"), (1, "knife")),
+            ((5, "coin"), (1, "axe")),
+            ((4, "coin"), (1, "sword")),
+            ((4, "coin"), (1, "mace")),
+            ((3, "coin"), (1, "dagger")),
+            ((2, "coin"), (1, "knife")),
             ((1, "iron"), (1, "coin"))
         ]
     ),
@@ -60,13 +60,13 @@ SECTIONS: list[VillageSection] = [
         "\nGreetings. What can I help you with?",
         "\nIt is a pleasure to meet you.\n",
         [
-            ((3, "coin"), (1, "staff")),
-            ((2, "coin"), (1, "bow")),
-            ((1, "coin"), (5, "arrow")),
-            ((1, "coin"), (1, "nunchucks")),
+            ((4, "coin"), (1, "staff")),
+            ((3, "coin"), (1, "bow")),
+            ((2, "coin"), (1, "nunchucks")),
+            ((1, "coin"), (10, "arrow")),
+            ((1, "coin"), (2, "boomerang")),
             ((1, "iron"), (5, "shuriken")),
-            ((2, "boomerang"), (1, "coin")),
-            ((1, "wood"), (1, "coin"))
+            ((2, "wood"), (1, "coin"))
         ]
     ),
     VillageSection(
@@ -76,7 +76,7 @@ SECTIONS: list[VillageSection] = [
         [
             ((3, "coin"), (1, "healing potion")),
             ((2, "coin"), (1, "pill")),
-            ((1, "coin"), (2, "bandage")),
+            ((1, "coin"), (1, "bandage")),
             ((1, "glass bottle"), (2, "coin")),
             ((2, "used bandage"), (1, "coin"))
         ]
@@ -86,10 +86,10 @@ SECTIONS: list[VillageSection] = [
         "\nHey. How ya been? Straight to the point, shall we?",
         "\nHere.\n",
         [
-            ((5, "coin"), (1, "musket")),
-            ((4, "coin"), (1, "flintlock")),
-            ((3, "coin"), (10, "musket bullet")),
-            ((2, "coin"), (10, "flintlock bullet")),
+            ((9, "coin"), (1, "musket")),
+            ((7, "coin"), (1, "flintlock")),
+            ((5, "coin"), (10, "musket bullet")),
+            ((3, "coin"), (10, "flintlock bullet")),
             ((1, "iron"), (1, "coin"))
         ]
     )
@@ -140,10 +140,13 @@ SEARCH_DROPS: list[tuple[str, int, float]] = [
     
     ("nunchucks",        1, 0.02),
     ("coin",             5, 0.02),
-    ("shuriken",         5, 0.02),
-    ("sword",            1, 0.02),
+    ("slingshot",        1, 0.02),
+    ("knife",            1, 0.02),
     ("axe",              1, 0.02),
     ("mace",             1, 0.02),
+    ("sword",            1, 0.02),
+    ("axe",              1, 0.02),
+    ("shuriken",         5, 0.02),
     ("bow",              1, 0.02),
     ("boot",             1, 0.02),
     ("arm pad",          1, 0.02),
@@ -189,8 +192,8 @@ def create_easy(name: str, weapon: tuple[str, bool] | None = None, armor: set[st
 def create_medium(name: str, weapon: tuple[str, bool] | None = None, armor: set[str] | None = None, inventory: Inventory | None = None) -> Character: return Character(name, 60, 60, 10, 0, weapon, armor, inventory)
 def create_hard(name: str, weapon: tuple[str, bool] | None = None, armor: set[str] | None = None, inventory: Inventory | None = None) -> Character: return Character(name, 90, 90, 10, 0, weapon, armor, inventory)
 def create_swarm(name: str, weapon: tuple[str, bool] | None = None, armor: set[str] | None = None, inventory: Inventory | None = None) -> Character: return Character(name, 10, 10, 3, 0, weapon, armor, inventory)
-def create_beast(name: str, weapon: tuple[str, bool] | None = None, armor: set[str] | None = None, inventory: Inventory | None = None) -> Character: return Character(name, 250, 250, 25, 0, weapon, armor, inventory)
-def create_boss(name: str, weapon: tuple[str, bool] | None = None, armor: set[str] | None = None, inventory: Inventory | None = None) -> Character: return Character(name, 200, 200, 15, 0, weapon, armor, inventory)
+def create_beast(name: str, weapon: tuple[str, bool] | None = None, armor: set[str] | None = None, inventory: Inventory | None = None) -> Character: return Character(name, 250, 250, 50, 0, weapon, armor, inventory)
+def create_boss(name: str, weapon: tuple[str, bool] | None = None, armor: set[str] | None = None, inventory: Inventory | None = None) -> Character: return Character(name, 500, 500, 25, 0, weapon, armor, inventory)
 
 
 ENCOUNTERS: dict[int, list[Character]] = {
@@ -247,5 +250,26 @@ ENCOUNTERS: dict[int, list[Character]] = {
         create_easy("Goblin", weapon = ("dagger", False), inventory = Inventory(items = {"glass bottle": 1})),
         create_easy("Goblin", weapon = ("knife", True), inventory = Inventory(items = {"bandage": 2})),
         create_easy("Goblin", weapon = ("sword", False), inventory = Inventory(items = {"wood": 3}))
+    ],
+
+    10:
+    [
+        create_medium("Orc", weapon = ("mace", False), armor = {"chestplate"}, inventory = Inventory(items = {"iron": 2})),
+        create_easy("Goblin", weapon = ("dagger", False), inventory = Inventory(items = {"healing potion": 1})),
+        create_easy("Goblin", weapon = ("dagger", False), inventory = Inventory(items = {"flintlock bullet": 1}))
+    ],
+
+    11:
+    [
+        create_hard("Zombie", inventory = Inventory(items = {"used bandage": 1})),
+        create_hard("Zombie")
+    ],
+
+    12:
+    [
+        create_swarm("Imp", weapon = ("dagger", False)),
+        create_swarm("Imp", weapon = ("dagger", False)),
+        create_swarm("Imp", weapon = ("dagger", False)),
+        create_swarm("Imp", weapon = ("dagger", False))
     ]
 }

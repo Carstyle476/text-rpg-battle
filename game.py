@@ -48,7 +48,7 @@ def drops(drop_list: list[tuple[str, int, float]], capacity: int = 20) -> Invent
 # false = not good
 def save(state: dict, file: str, dont_ask: bool = False) -> bool:
     saveable: dict = dict(state)
-    if "player" in saveable: saveable["player"] = Character.save(saveable["player"])
+    saveable["player"] = Character.save(saveable["player"])
     try:
         with open(file, mode = "x") as save_file: save_file.write(dumps(saveable))
     except FileExistsError:
@@ -64,8 +64,9 @@ def save(state: dict, file: str, dont_ask: bool = False) -> bool:
 def load(file: str) -> dict:
     with open(file, mode = "r") as save_file:
         loaded: dict = loads(save_file.read())
-        if "player" in loaded: loaded["player"] = Character.load(loaded["player"])
-        if "dont encounter" in loaded: loaded["dont encounter"] = True
+        loaded["player"] = Character.load(loaded["player"])
+        loaded["dont encounter"] = True
+        loaded["dont visit"] = True
         return loaded
 
 # keep asking user for save name if invalid
@@ -106,7 +107,8 @@ def get_positive_num(ask: str) -> int:
 
 def enemy_display(enemy: Character, indent: int) -> str:
     indent_str: str = " " * indent
-    result: str = f"""{enemy.name}  ({enemy.hp}/{enemy.hp_cap} HP)
+    result: str = f"""{enemy.name}  ({enemy.hp}/{enemy.hp_cap} HP, {enemy.regen} regen HP)
+{indent_str}Strength: {enemy.strength}
 {indent_str}Weapon: {item_display(enemy.weapon[0], 1 + enemy.weapon[1]) if enemy.weapon[0] != '' else 'None'}
 {indent_str}Armor:"""
     counter: int = 0
@@ -119,24 +121,36 @@ def enemy_display(enemy: Character, indent: int) -> str:
 
 def lose(name: str) -> dict:
     sleep(1)
-    print("\nYou died...\nReloading save")
-    sleep(1)
-    loaded: dict = load(f"{name}{EXTENSION}")
-    if "dont encounter" in loaded: loaded["dont encounter"] = True
-    return loaded
+    print(
+"""
+===============
+  YOU'RE DEAD
+===============
+Reloading save...
+"""
+    )
+    sleep(2)
+    return load(f"{name}{EXTENSION}")
 
 
 # main menu
 # returns game state
 def menu(welcome: bool = True) -> dict:
-    print(f"\nMAIN MENU{'\nWelcome to the game!\n(Please, do not make typos)' if welcome else ''}")
+    print(
+f"""
+=============
+  MAIN MENU 
+============={'\nWelcome to the game!' if welcome else ''}
+"""
+    )
     
     choice: int = get_input(
         "Select an option:\n",
         [
             "Exit",
             "New game",
-            "Load game"
+            "Load game",
+            "How to play?"
         ]
     )
 
@@ -155,7 +169,7 @@ def menu(welcome: bool = True) -> dict:
             "encounter": 0,
             "autosave": input("\nDo you want to enable autosave?\nEvery action will be saved automatically without asking (y/n)\n>>> ").lower().strip() == "y",
             "dont encounter": True,
-            "just visited": False,
+            "dont visit": False,
             "visited bandits": False,
             "first": True,
             "finished boss": False,
@@ -166,6 +180,32 @@ def menu(welcome: bool = True) -> dict:
         if not(successful): return {"retry": True}
         return new_game
     if choice == 2: return load_safely()
+    if choice == 3:
+        print(
+"""
+This is a rather simple game, so this "tutorial" (more like clarification) won't be very long
+
+Menus will have numbered options, all you have to do is select the option you want
+by typing in that option's number
+
+Some menus allow you to cancel the operation (either a whole separate option or just "leave blank")
+
+You can dual-wield weapons by equipping 2 of the same kind
+
+If you are about to overwrite your save file, the game will ask you
+To confirm, type 'y' (without the quotes)
+Any other answer will lead to the game not overwriting the file
+
+In the game world, you can use the 0 option "Search area" to look for items around you
+Sometimes, you can come across useful items
+
+"Bugs" that are actually design choices:
+- You can loot in the middle of battle
+- I will add more to this list once I remember
+"""
+        )
+        input("Hit enter to continue\n")
+        return {"retry": True}
     return {}
 
 
@@ -176,7 +216,14 @@ def menu(welcome: bool = True) -> dict:
 def options(state: dict) -> dict:
     choice: int = -1
     while choice != 4:
-        print("\nOPTIONS")
+        print(
+"""
+===========
+  OPTIONS
+===========
+Game settings
+"""
+        )
         
         choice = get_input(
             "Select an option:\n",
@@ -198,7 +245,6 @@ def options(state: dict) -> dict:
             state["autosave"] = not(state["autosave"])
             save(state, f"{state['player'].name}{EXTENSION}", state["autosave"])
 
-    state["dont encounter"] = True
     return state
 
 
@@ -209,14 +255,13 @@ def manage(player: Character, outside: Inventory | None = None, in_battle: bool 
     EQUIP: str = "Equip"
     UNEQUIP: str = "Unequip"
     HEAL: str = "Heal"
-    DONE: str = "Back"
+    DONE: str = "Done"
     INVALID: str = "You can't do that\n"
     
     if outside is None: outside = Inventory(capacity = -1)
 
     msg: str = ""
     while True:
-        print(f"\nINVENTORY MANAGEMENT")
         options: list[str] = [DONE]
         ADD_WITH_ITEMS: str = ADD
 
@@ -232,9 +277,17 @@ def manage(player: Character, outside: Inventory | None = None, in_battle: bool 
                     options.append(EQUIP)
                     options.append(UNEQUIP)
 
-        print(player)
+        if (player.weapon[0] != "" or len(player.armor_set) > 0) and not(UNEQUIP in options): options.append(UNEQUIP)
 
-        print(msg)
+        print(f"""
+========================
+  INVENTORY MANAGEMENT
+========================
+Manage your inventory, health, and weapons
+{player}
+{msg}"""
+        )
+
         msg = ""
         choice_name: str = options[get_input("Select an option:\n", options)]
         if choice_name == DONE: return
@@ -244,14 +297,12 @@ def manage(player: Character, outside: Inventory | None = None, in_battle: bool 
 
             outside_options: list[str] = list(outside.items)
             inside_options: list[str] = list(player.inventory.items)
-            for armor in player.armor_set: inside_options.append(armor)
-            if player.weapon[0] != "": inside_options.append(player.weapon[0])
 
             if choice_name == EQUIP or choice_name == UNEQUIP:
                 skip: bool = False
                 while True:
                     un: str = "E" if choice_name == EQUIP else "Une"
-                    raw: str = input(f"\nSelect an option (leave blank to cancel):\n\n0 - {un}quip a weapon\n1 - {un}quip an armor piece\n\n").strip()
+                    raw: str = input(f"\nSelect an option (leave blank to cancel):\n\n0 - {un}quip a weapon\n1 - {un}quip (an) armor piece(s)\n\n").strip()
                     if raw == "":
                         skip = True
                         break
@@ -260,52 +311,57 @@ def manage(player: Character, outside: Inventory | None = None, in_battle: bool 
                         break
                     print("\nInvalid input, try again\n")
                 if skip: continue
+                if choice_name == UNEQUIP: inside_options.clear()
 
             # delete options accordingly
             in_op_deletes: list[str] = []
             for item in inside_options:
-                is_equippable: bool = equip_weapon and item in WEAPON_BONUSES or not(equip_weapon) and item in ARMOR_REDUCTIONS
-                delete_equip: bool = choice_name == EQUIP and not(is_equippable)
-                delete_unequip: bool = choice_name == UNEQUIP and (item in player.inventory.items or is_equippable)
-                delete_heal: bool = choice_name == HEAL and not(item in HEALING_ITEMS)
-                if delete_equip or delete_unequip or delete_heal: in_op_deletes.append(item)
-
+                delete_equip: bool = choice_name == EQUIP and not(equip_weapon and item in WEAPON_BONUSES or not(equip_weapon) and item in ARMOR_REDUCTIONS)
+                if delete_equip or choice_name == HEAL and not(item in HEALING_ITEMS): in_op_deletes.append(item)
             for to_delete in in_op_deletes: inside_options.remove(to_delete)
 
             correct_options: list[str] = outside_options if choice_name == ADD_WITH_ITEMS else inside_options
+            if choice_name == UNEQUIP:
+                if not(equip_weapon):
+                    for armor in player.armor_set: correct_options.append(armor)
+                elif player.weapon[0] != "": correct_options.append(player.weapon[0])
+
             if len(correct_options) == 0:
                 msg = INVALID
                 continue
-            item: str = correct_options[0 if len(correct_options) == 1 else get_input("\nSelect an option:\n", correct_options)]
+            CANCEL: str = "Cancel"
+            correct_options.insert(0, CANCEL)
+            item: str = correct_options[get_input("\nSelect an option (or cancel):\n", correct_options)]
+            if item == CANCEL: continue
+            selected_inventory: Inventory = outside if choice_name == ADD_WITH_ITEMS else player.inventory
             # VERY dodgy one-liner
-            if choice_name != UNEQUIP: count: int = 1 if (outside if choice_name == ADD_WITH_ITEMS else player.inventory).items[item] == 1 else get_positive_num(f"\nHow m{'uch' if item in MATERIALS else 'any'} {item_display(item, 2)[2:]} do you want to {choice_name.lower().split("\n")[0]}{' with' if choice_name == HEAL else ''}?\n>>> ")
+            count: int = 1 if choice_name in [EQUIP, UNEQUIP, HEAL] or selected_inventory.items[item] == 1 else get_positive_num(f"\nHow m{'uch' if item in MATERIALS else 'any'} {item_display(item, 2)[2:]} do you want to {choice_name.lower().split('\n')[0]}{' with' if choice_name == HEAL else ''}?\n(there's {selected_inventory.items[item]}, leave blank to cancel)\n>>> ")
             if count < 0: continue
 
             rollback: bool = False
+            display: str = item_display(item, count if choice_name == ADD_WITH_ITEMS or choice_name == DISCARD else (2 if item in ARMOR_REDUCTIONS and ARMOR_REDUCTIONS[item][1] else 0)).lower()
             try:
                 if choice_name == ADD_WITH_ITEMS:
                     outside.remove(item, count)
                     rollback = True
                     player.inventory.add(item, count)
-                    msg = "Successfully added item to your inventory\n"
+                    msg = f"Successfully added {display} to your inventory\n"
                 elif choice_name == DISCARD:
                     outside.add(item, count)
                     rollback = True
                     player.inventory.remove(item, count)
-                    msg = "Successfully discarded item from your inventory\n"
+                    msg = f"Successfully discarded {display} from your inventory\n"
                 elif choice_name == EQUIP:
                     if equip_weapon: player.equip_weapon(item)
                     else: player.equip_armor(item)
-                    msg = f"Successfully equipped {'weapon' if equip_weapon else 'armor piece'}\n"
+                    msg = f"Successfully equipped {'another ' if equip_weapon and player.weapon[1] else ''}{display}\n"
                 elif choice_name == UNEQUIP:
                     if equip_weapon: player.unequip_weapon()
                     else: player.unequip_armor(item)
-                    msg = f"Successfully unequipped {'weapon' if equip_weapon else 'armor piece'}\n"
-                else:
-                    player.heal(item, in_battle)
-                    msg = f"Successfully healed up"
-            except (EquipmentError, InventoryError):
-                msg = INVALID
+                    msg = f"Successfully unequipped {'weapon' if equip_weapon else display}\n"
+                else: msg = player.heal(item, in_battle)
+            except (EquipmentError, InventoryError) as e:
+                msg = f"{INVALID}{str(e)}\n"
                 if rollback:
                     if choice_name == ADD_WITH_ITEMS: outside.add(item, count)
                     else: outside.remove(item, count)
@@ -320,16 +376,31 @@ def battle(player: Character, enemies: list[Character]) -> int:
     
     while len(enemies) > 0:
         player_defending: bool = False
-        print("\nBATTLE\nYou are under attack from:\n")
+        print(
+"""
+==========
+  BATTLE
+==========
+You are in a fight with:
+"""
+        )
         for enemy in enemies: print(f"- {enemy_display(enemy, 2)}")
-        
+
+        print(
+f"""
+--------------
+ QUICK STATUS
+--------------
+> {enemy_display(player, 2)}"""
+        )
+
         # player does stuff
         choice: int = get_input(
             "\nSelect an option:\n",
             [
                 "Attack",
                 "Defend",
-                "Manage",
+                "Management",
                 "Flee"
             ]
         )
@@ -353,8 +424,13 @@ def battle(player: Character, enemies: list[Character]) -> int:
 
         sleep(1)
         chosen: Character = enemies[attack_choice]
-        player.turn(None if player_defending else chosen)
+        try: player.turn(None if player_defending else chosen)
+        except EquipmentError as e:
+            print(f"\nYou can't do that\n{str(e)}")
+            continue
         if attack_choice != -1 and chosen.hp <= DEATH_THRESHOLD:
+            sleep(1)
+            print(f"\n{chosen.name} has been defeated!")
             chosen.inventory.capacity = -1
             chosen.unequip_weapon()
             chosen.unequip_weapon()
@@ -368,6 +444,7 @@ def battle(player: Character, enemies: list[Character]) -> int:
             try: enemy.turn(player, player_defending)
             except InventoryError:
                 enemy.unequip_weapon()
+                enemy.unequip_weapon()
                 enemy.turn(player, player_defending)
             if player.hp <= 0: return -1
             sleep(1)
@@ -379,23 +456,32 @@ def battle(player: Character, enemies: list[Character]) -> int:
 
 
 # village mechanics
-def village(player: Character) -> None:
+def village(player: Character) -> str:
     LEAVE: str = "Leave"
+    CANCEL: str = "Cancel"
 
+    player.hp = player.hp_cap
+    print(f"\n{player.name} is now at full health.")
     while True:
-        options: list[str] = []
-        options.append(LEAVE)
+        print(
+"""
+===========
+  VILLAGE
+===========
+Do some trading with the villagers
+"""
+        )
+
+        options: list[str] = [LEAVE]
         for section in SECTIONS: options.append(section.name)
+        choice: int = get_input("Select a part of the village to visit:\n", options)
+        if options[choice] == LEAVE: return ""
 
-        choice: int = get_input("\nSelect a part of the village to visit:\n", options)
-        if options[choice] == LEAVE: return
-
-        section: VillageSection = SECTIONS[choice]
+        section: VillageSection = SECTIONS[choice - 1]
         first: bool = True
         msg: str = ""
         while True:
-            print(section if first else section.show_trades())
-            print(msg)
+            print(f"{section if first else section.show_trades()}\n{msg}")
             msg = ""
             first = False
 
@@ -403,7 +489,7 @@ def village(player: Character) -> None:
                 "Select an option:\n",
                 [
                     LEAVE,
-                    "Manage",
+                    "Management",
                     "Trade"
                 ]
             )
@@ -412,12 +498,25 @@ def village(player: Character) -> None:
                 manage(player)
                 continue
 
+            to_del_item_list: list[str] = []
             item_list: list[str] = list(player.inventory.items)
-            CANCEL: str = "Cancel"
+            for item in item_list:
+                tradeable: bool = False
+                for trade in section.trades:
+                    if trade[0][1] == item or trade[1][1] == item:
+                        tradeable = True
+                        break
+                if not(tradeable): to_del_item_list.append(item)
+            for to_del in to_del_item_list: item_list.remove(to_del)
+
+            if len(item_list) == 0:
+                msg = "\nYou have nothing to offer for this villager\n"
+                continue
+
             item_list.insert(0, CANCEL)
             offer_name: str = item_list[get_input("\nWhat do you want to offer? (or do you want to cancel?)\n", item_list)]
             if offer_name == CANCEL: continue
-            offer_amt: int = get_positive_num(f"\nHow m{'uch' if offer_name in MATERIALS else 'any'} {item_display(offer_name, 2)[2:]} do you want to offer?\n(leave blank to cancel)\n>>> ") if offer_name in player.inventory.items and player.inventory.items[offer_name] > 1 else 1
+            offer_amt: int = get_positive_num(f"\nHow m{'uch' if offer_name in MATERIALS else 'any'} {item_display(offer_name, 2)[2:]} do you want to offer?\n(you have {player.inventory.items[offer_name]}, leave blank to cancel)\n>>> ") if player.inventory.items[offer_name] > 1 else 1
             if offer_amt < 0: continue
             offer: tuple[int, str] = (offer_amt, offer_name)
 
@@ -426,59 +525,140 @@ def village(player: Character) -> None:
             for trade in section.trades:
                 if trade[0][1] == offer[1] and offer[0] % trade[0][0] == 0 and trade[0][0] <= offer[0] or trade[1][1] == offer[1] and offer[0] % trade[1][0] == 0 and trade[1][0] <= offer[0]: possible_trades.append(trade)
 
-            def attempt_trade(trade: tuple[tuple[int, str], tuple[int, str]]) -> str:
+            if len(possible_trades) == 0: msg = "\nNo trades match your offer\n"
+            else:
+                options = [CANCEL]
+                for trade in possible_trades: options.append(show_trade(trade)[1:])
+                choice = get_input("\nSelect a trade (or cancel):\n", options)
+                if options[choice] == CANCEL: continue
+                trade: tuple[tuple[int, str], tuple[int, str]] = possible_trades[choice - 1]
+
                 rollback: bool = False
-                flipped: bool = offer == trade[1]
-                other_side: tuple[int, str] = trade[0] if flipped else trade[1]
+                flipped: bool = offer[1] == trade[1][1]
+                other_side: tuple[int, str] = trade[0 if flipped else 1]
                 try:
                     player.inventory.remove(offer[1], offer[0])
                     rollback = True
-                    player.inventory.add(other_side[1], other_side[0] * (offer[0] // (trade[1 if flipped else 0][0])))
-                    return section.thanks
+                    player.inventory.add(other_side[1], other_side[0] * (offer[0] // trade[1 if flipped else 0][0]))
+                    msg = section.thanks + f"(You now have {item_display(other_side[1], player.inventory.items[other_side[1]]).lower()})\n"
                 except InventoryError as e:
                     if rollback: player.inventory.add(offer[1], offer[0])
-                    return "\nYou can't do that\n"
-
-            if len(possible_trades) == 0: msg = "\nNo trades match your offer\n"
-            else:
-                options = []
-                for trade in possible_trades: options.append(show_trade(trade)[1:])
-                choice = 0 if len(options) == 1 else get_input("\nSelect a trade:\n", options)
-                msg = attempt_trade(possible_trades[choice])
-
-        # heal up the player
-        player.hp = player.hp_cap
+                    msg = f"\nYou can't do that\n{str(e)}\n"
 
 
 def enter_place(state: dict, player: Character, at: str) -> tuple[str, int]:
+    same_spot: bool = state["search_x"] == state["px"] and state["search_y"] == state["py"]
     msg: str = ""
     result: int = 0
 
     if   at == VILLAGE: village(player)
     elif at == BANDITS:
-        battle_result = battle(player, [
-            create_hard("Bandit", weapon = ("flintlock", False), inventory = Inventory(items = {"flintlock bullet": 6, "coin": 10})),
-            create_hard("Bandit", weapon = ("sword", False), inventory = Inventory(items = {"bandage": 3, "healing potion": 1})),
-        ])
-        state["visited bandits"] = True
-    elif at == DEFENSES:
-        if state["actually finished"]: msg = "Do not fear, for your guards are free of the wizard's trance\n"
+        if same_spot: msg = "You already fought these bandits!\n"
         else:
-            battle_result = battle(player, [
+            result = battle(player, [
+                create_hard("Bandit", weapon = ("flintlock", False), inventory = Inventory(items = {"flintlock bullet": 6, "coin": 10})),
+                create_hard("Bandit", weapon = ("sword", False), inventory = Inventory(items = {"bandage": 3, "healing potion": 1})),
+            ])
+            state["visited bandits"] = True
+    elif at == DEFENSES:
+        if same_spot: msg = "You already fought the castle's defenses!\n"
+        elif state["actually finished"]: msg = "Do not fear, for your guards are free of the wizard's trance\n"
+        else:
+            result = battle(player, [
                 create_beast("Dragon"),
                 create_hard("Guard", weapon = ("musket", False), armor = {"helmet", "chestplate", "legging", "arm pad", "boot", "shield"}, inventory = Inventory(items = {"musket bullet": 15, "healing potion": 1})),
-                create_hard("Guard", weapon = ("axe", True), armor = {"helmet", "chestplate", "legging", "arm pad", "boot", "shield"}, inventory = Inventory(items = {"healing potion": 3}))
+                create_hard("Guard", weapon = ("axe", True), armor = {"helmet", "chestplate", "legging", "arm pad", "boot"}, inventory = Inventory(items = {"healing potion": 2}))
             ])
     else:
         if state["actually finished"]: msg = f"You have already defeated the evil wizard!\n"
         else:
-            battle_result = battle(player, [
-                create_boss("Evil Wizard", weapon = ("magic staff", False), inventory = Inventory(items = {"coin": 100, "ring": 1}))
-            ])
-            state["finished boss"] = battle_result == 1
+            sleep(1)
+            print(
+"""
+You burst in, leaving the dragon and the guards at the door.
+The sound of the doors slamming reverberates through the castle halls.
 
-    state["just visited"] = True
+You start running.
+
+You know this place already.
+
+The red carpet is silky smooth.
+The paintings on the walls are framed with gold.
+Elegant chandeliers cover the ceiling, hanging on by a thread.
+
+You take a left.
+A right.
+Another left.
+
+You're still running down the halls.
+
+...Then you see it.
+Grand wooden double-doors.
+
+You burst through, again, just like what you did to get in a few minutes ago.
+The sunlight shines through the windows, more familliar than the back of your hand.
+
+You hear a chuckle, then a taunting voice on the other side of the room.
+"Well, well, well..."
+
+"Shall we begin... our dance to the death?"
+"""
+            )
+            sleep(1)
+            input("Hit enter to continue\n")
+
+            result = battle(player, [
+                create_boss("Evil Wizard", weapon = ("magic staff", False), inventory = Inventory(items = {"coin": 100}))
+            ])
+            state["finished boss"] = result == 1
+
+    if result == 1 or at != DEFENSES:
+        state["search_x"] = state["px"]
+        state["search_y"] = state["py"]
+
+    state["dont encounter"] = True
+    state["dont visit"] = True
+    state["player"] = player
+
+    if result != -1: save(state, f"{player.name}{EXTENSION}", state["autosave"])
     return (msg, result)
+
+
+def rand_encounter(state: dict) -> list[Character]:
+    counter: int = 0
+    enemy_list: list[Character] = []
+    scale: float = min(ENCOUNTER_SCALING_LIMIT, (state["encounter"] - len(ENCOUNTERS)) * ENCOUNTER_SCALING)
+
+    for i in range(randint(1, RAND_ENCOUNTER_MAX_ACTUAL)):
+        enemy_type: int = randint(0, 3)
+
+        enemy_weapon: str = ""
+        counter: int = 0
+        for weapon in WEAPON_BONUSES:
+            if random() < CHOOSE_WEAPON_CHANCE - scale or counter == CHOOSE_WEAPON_LIMIT:
+                enemy_weapon = weapon
+                break
+            counter += 1
+
+        enemy_armor: set = set()
+        for armor in ARMOR_REDUCTIONS:
+            if random() < APPLY_ARMOR_CHANCE + scale: enemy_armor.add(armor)
+
+        # this is some VERY VERY questionable code...
+        enemy_creation: object = create_easy
+        if enemy_type == 1: enemy_creation = create_medium
+        if enemy_type == 2: enemy_creation = create_hard
+        if enemy_type == 3 or counter >= RAND_ENCOUNTER_MAX_LOOSE: enemy_creation = create_swarm
+
+        names: list[str] = ["Goblin"]
+        if enemy_type == 1: names[0] = "Orc"
+        if enemy_type == 2: names = ["Zombie", "Skeleton"] 
+        if enemy_type == 3: names[0] = "Imp"
+
+        enemy_list.append(enemy_creation(names[randint(0, len(names) - 1)], (enemy_weapon, random() < DUAL_WIELD_CHANCE), enemy_armor, drops(ENCOUNTER_DROPS)))
+        if enemy_type != 3: counter += 1
+
+    return enemy_list
 
 
 # put it all together
@@ -497,14 +677,17 @@ def game(first: bool) -> bool:
         
         print(
 """
-
 A long, long time ago, there lived the ruler of a peaceful and prospering kingdom.
 He walked with grace, yet he ruled with utmost discipline.
 
 But then, something went wrong.
 
-A wizard walked up, fabulous yet crude, and said to the ruler:
-"Begone thou, as I shall now take thy throne, which rightfully belongs to me!"
+An old man in a robe walked up, every footstep thumping loud in the throne room.
+In his hand lies a magic staff, glistening in the sunlight shining through the decorated windows.
+"Who are you?", the ruler asked, half-curious and half-frustrated.
+
+The man introduced himself, with an almost prophetic tone.
+"Begone foul ruler, for I am a wizard, here to take thy throne!"
 
 The ruler stood up, eyebrows furrowing, and said:
 "Guards! Take this fool away!"
@@ -518,7 +701,7 @@ The wizard walked closer, his smile widening, and said:
 
 With a swift and thundering movement of his magic staff,
 the ruler was thrown up, and away from his throne by nothing but wind,
-and started to feel the floor spin beneath him.
+and began to feel the floor spin beneath him.
 
 Spin, spin, and spin...
 His arms flailed around, desperately trying to keep himself upright.
@@ -531,9 +714,8 @@ Everything becomes bright, blinding almost, and he falls over onto the grass.
 
 "The castle has ceramic tiling..."
 
-To the north, he can see the lush green forest.
-To the east, he can see the deep blue ocean,
-with the waves chipping at a lone village further north.
+To the north, he can see the lush green forest, which hides many dangers in the dark.
+To the east, he can see the deep blue ocean, with the waves chipping at a lone village further north.
 
 Further northeast, the ruler's grand castle sits in the safety of high walls,
 each wall boasting a large dragon to fend off intruders.
@@ -544,6 +726,7 @@ the severity of the situation finally begins to show.
 He has been thrown from his castle, and must now stop the evil wizard,
 before anything worse happens to his people.
 
+(You might have to resize the window or scroll up for this one)
 """
         )
 
@@ -554,9 +737,11 @@ before anything worse happens to his people.
     # actual game
     msg: str = ""
     battle_result: int = -2
-    while not(state["finished boss"]):
+    while True:
         player: Character = state["player"]
-        if battle_result == -1: state = lose(player.name)
+        if battle_result == -1 or player.hp <= 0:
+            state = lose(player.name)
+            player = state["player"]
         elif battle_result >= 0 or state["autosave"]: save(state, f"{player.name}{EXTENSION}", state["autosave"])
         battle_result = -2
 
@@ -566,72 +751,39 @@ before anything worse happens to his people.
         for i in range(len(WORLD_MAP)): map_with_player += "@" if i == x + (x_bound() + 1) * y else WORLD_MAP[i]
 
         at: str = map_char_at(x, y)
-        at_place: bool = at in [CASTLE, BANDITS, VILLAGE, DEFENSES]
+        PLACES: list[str] = [CASTLE, BANDITS, VILLAGE, DEFENSES]
+        at_place: bool = at in PLACES
 
         encounter_chance: float = 0
         if map_char_at(x, y) == PLAINS: encounter_chance = ENCOUNTER_CHANCE_LOW
         if map_char_at(x, y) == FOREST: encounter_chance = ENCOUNTER_CHANCE_HIGH
-        trigger_encounter: bool = random() < encounter_chance and not(state["dont encounter"])
+        trigger_encounter: bool = not(state["dont encounter"]) and random() < encounter_chance
         state["dont encounter"] = False
 
         if trigger_encounter:
-            # follow the list of scripted encounters
-            # when it runs out, start making stuff up
-            enemy_list: list[Character] = []
-            if state["encounter"] >= len(ENCOUNTERS):
-                counter: int = 0
-                scale: float = min(ENCOUNTER_SCALING_LIMIT, (state["encounter"] - len(ENCOUNTERS)) * ENCOUNTER_SCALING)
-                for i in range(randint(1, RAND_ENCOUNTER_MAX_ACTUAL)):
-                    enemy_type: int = randint(0, 3)
-
-                    enemy_weapon: str = ""
-                    counter: int = 0
-                    for weapon in WEAPON_BONUSES:
-                        if random() < CHOOSE_WEAPON_CHANCE - scale or counter == CHOOSE_WEAPON_LIMIT:
-                            enemy_weapon = weapon
-                            break
-                        counter += 1
-
-                    enemy_armor: set = set()
-                    for armor in ARMOR_REDUCTIONS:
-                        if random() < APPLY_ARMOR_CHANCE + scale: enemy_armor.add(armor)
-
-                    # this is some VERY VERY questionable code...
-                    enemy_creation: object = create_easy
-                    if enemy_type == 1: enemy_creation = create_medium
-                    if enemy_type == 2: enemy_creation = create_hard
-                    if enemy_type == 3 or counter >= RAND_ENCOUNTER_MAX_LOOSE: enemy_creation = create_swarm
-
-                    names: list[str] = ["Goblin"]
-                    if enemy_type == 1: names[0] = "Orc"
-                    if enemy_type == 2: names = ["Zombie", "Skeleton"] 
-                    if enemy_type == 3: names[0] = "Imp"
-
-                    enemy_list.append(enemy_creation(names[randint(0, len(names) - 1)], (enemy_weapon, random() < DUAL_WIELD_CHANCE), enemy_armor, drops(ENCOUNTER_DROPS)))
-                    if enemy_type != 3: counter += 1
-            else: enemy_list = ENCOUNTERS[state["encounter"]]
-            
-            battle_result = battle(player, enemy_list)
+            battle_result = battle(player, rand_encounter(state) if state["encounter"] >= len(ENCOUNTERS) else ENCOUNTERS[state["encounter"]])
             if battle_result == 1: state["encounter"] += 1
             state["dont encounter"] = True
             continue
 
-        msg = ""
-        if at_place and not(state["just visited"]):
+        if at_place and not(state["dont visit"]) and msg == "":
             enter_result: tuple[str, int] = enter_place(state, player, at)
             msg = enter_result[0]
             battle_result = enter_result[1]
-        elif state["just visited"]: state["just visited"] = False
+            player = state["player"]
+            if state["finished boss"]: break
+            continue
+        state["dont visit"] = False
 
         print(
 map_with_player + f"""
 \nLegend:
  @ - You
- {CASTLE} - The Castle
- {DEFENSES} - The Wall{f'\n {BANDITS} - The Bandit Camp' if state['visited bandits'] else ''}
- {VILLAGE} - The Village
+ {CASTLE} - Your Castle
+ {DEFENSES} - The Wall{f'\n {BANDITS} - Bandit Camp' if state['visited bandits'] else ''}
+ {VILLAGE} - Village
  {OCEAN} - Ocean
- {PLAINS} - The Plains
+ {PLAINS} - Plains
  {FOREST} - Dark Forest
 \n{msg}Pick a direction, or select an action:
 
@@ -644,22 +796,22 @@ SW S SE
         )
 
         raw: str = input().lower().strip()
+        msg = ""
 
         if raw.isdigit():
             choice: int = int(raw)
             if choice == 0:
-                if state["search_x"] == x and state["search_y"] == y: msg = "You can't search the same spot again\nGo somewhere else\n"
-                else:
-                    if at_place:
-                        enter_result: tuple[str, int] = enter_place(state, player, at)
-                        msg = enter_result[0]
-                        battle_result = enter_result[1]
-                    else: manage(player, drops(SEARCH_DROPS, -1))
-
-                    if at_place and battle_result == 1 or not(at_place):
-                        state["search_x"] = x
-                        state["search_y"] = y
-                        if at_place: state["dont encounter"] = True
+                if at_place:
+                    enter_result: tuple[str, int] = enter_place(state, player, at)
+                    msg = enter_result[0]
+                    battle_result = enter_result[1]
+                    player = state["player"]
+                    if state["finished boss"]: break
+                elif not(state["search_x"] == x and state["search_y"] == y):
+                    manage(player, drops(SEARCH_DROPS, -1))
+                    state["search_x"] = x
+                    state["search_y"] = y
+                else: msg = "You can't search the same spot again\nGo somewhere else\n"
             elif choice == 1: manage(player)
             elif choice == 2:
                 result: dict = options(state)
@@ -667,6 +819,7 @@ SW S SE
                 if result != state: state = result
                 state["dont encounter"] = True
             else: msg = "Invalid option\n"
+            if choice != 0: state["dont visit"] = True
         elif raw != "":
             INVALID_DIR: str = "Invalid direction\n"
             movement_x: int = 0
@@ -690,28 +843,34 @@ SW S SE
                         elif raw[1] == "e": movement_x += 1
                         else: msg = INVALID_DIR
                     else: msg = INVALID_DIR
+                elif len(raw) > 2: msg = INVALID_DIR
 
-            destination: str = map_char_at(x + movement_x, y + movement_y)
-            if destination == "" or destination == "\n": msg = INVALID_DIR
-            elif destination == OCEAN: msg = INVALID_DIR + "That's the ocean!\n"
-            elif destination == CASTLE and map_char_at(state["search_x"], state["search_y"]) != DEFENSES and not(state["finished boss"]): msg = INVALID_DIR + "You must get through the evil wizard's defenses first\n"
+            if msg == "":
+                destination: str = map_char_at(x + movement_x, y + movement_y)
+                if destination == "" or destination == "\n": msg = INVALID_DIR
+                elif destination == OCEAN: msg = INVALID_DIR + "That's the ocean!\n"
+                elif destination == CASTLE and map_char_at(state["search_x"], state["search_y"]) != DEFENSES and not(state["actually finished"]): msg = INVALID_DIR + "You must get through the evil wizard's defenses first\n"
 
             if msg == "":
                 state["px"] += movement_x
                 state["py"] += movement_y
+                state["dont encounter"] = map_char_at(state["px"], state["py"]) in PLACES
+        else: msg = "You have to type something...\n"
 
-        if not(state["dont encounter"]): state["dont encounter"] = msg != "" or raw == "" or at_place
-        if not(state["dont encounter"]) or at_place: player.hp = min(player.hp_cap, player.hp + PASSIVE_HEAL)
-    else:
-        if save(state, f"{player.name}{EXTENSION}", state["autosave"]) and not(state["actually finished"]):
-            player: Character = state["player"]
-            sleep(1)
-            print(
+        if not(state["dont encounter"]):
+            state["dont encounter"] = msg != "" or raw == "" or at_place
+            if not(state["dont encounter"]): player.hp = min(player.hp_cap, player.hp + PASSIVE_HEAL)
+
+    if not(state["actually finished"]):
+        player: Character = state["player"]
+        sleep(1)
+        print(
 f"""
+The ruler struck the evil wizard with his {item_display(player.weapon[0], 2 if player.weapon[1] else 0)}.
 
-The ruler struck down on the evil wizard with his {item_display(player.weapon[0], 2 if player.weapon[1] else 0)}.
+He fell to the ground, his magic staff happening to roll over to the ruler's feet.
 
-"Please, spare me!", the wizard cried.
+"You can have the staff, just... please, spare me!", the wizard cried, with desperation in every word.
 
 The ruler thought for a moment, then took the wizard's magic staff.
 
@@ -720,15 +879,17 @@ The ruler thought for a moment, then took the wizard's magic staff.
 With a swift and thundering movement of his magic staff, he casted the wizard to a land far, far away.
 
 
-Thank you for playing my game!
+Thanks for playing my game!
  -- Carstyle476
-
 """
-            )
-            sleep(1)
-            input("Hit enter to continue\n")
-            state["actually finished"] = True
-            state["finished boss"] = False
+        )
+        sleep(1)
+        input("Hit enter to continue\n")
+
+        state["actually finished"] = True
+        state["finished boss"] = False
+        successful: bool = save(state, f"{player.name}{EXTENSION}")
+        if not(successful): print("\nWARNING: Could not save file for this special occasion!")
 
     return False
 
@@ -739,7 +900,7 @@ def main() -> None:
     first: bool = True
     while not(result):
         try: result = game(first)
-        except KeyboardInterrupt: return
+        except (KeyboardInterrupt, EOFError): return
         first = False
 
 if __name__ == "__main__": main()
