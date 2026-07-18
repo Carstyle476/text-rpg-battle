@@ -3,10 +3,11 @@ from common import *
 from character import Character, WEAPON_BONUSES, ARMOR_REDUCTIONS, HEALING_ITEMS
 from inventory import Inventory
 from data import *
-from json import dumps, loads, JSONDecodeError
 
+from json import dumps, loads, JSONDecodeError
 from random import random, randint
 from time import sleep
+from typing import Callable
 
 
 EXTENSION: str = ".save"
@@ -16,7 +17,7 @@ RAND_ENCOUNTER_MAX_LOOSE: int = 3 # i call this a "loose requirement", swarm ene
 RAND_ENCOUNTER_MAX_ACTUAL: int = 5 # the ACTUAL requirement
 
 CHOOSE_WEAPON_CHANCE: float = 0.15 # per weapon, move to next if it lands "false"
-CHOOSE_WEAPON_LIMIT: int = 14 # how far down the list it can go
+CHOOSE_WEAPON_LIMIT: int = 13 # how far down the list it can go
 DUAL_WIELD_CHANCE: float = 0.15
 
 APPLY_ARMOR_CHANCE: float = 0.1 # per armor piece
@@ -168,12 +169,12 @@ f"""
             "search_y": -1,
             "encounter": 0,
             "autosave": input("\nDo you want to enable autosave?\nEvery action will be saved automatically without asking (y/n)\n>>> ").lower().strip() == "y",
-            "dont encounter": True,
-            "dont visit": False,
-            "visited bandits": False,
-            "first": True,
-            "finished boss": False,
-            "actually finished": False
+            "dont encounter": True, # dont trigger random encounters
+            "dont visit": False, # dont automatically visit places
+            "visited bandits": False, # for showing bandits on the map legend
+            "first": True, # first start (new save)
+            "finished boss": False, # boss finished, trigger final dialog
+            "actually finished": False # final dialog is finished, can't defeat boss again
         }
 
         successful: bool = save(new_game, f"{name}{EXTENSION}", False)
@@ -191,6 +192,7 @@ by typing in that option's number
 Some menus allow you to cancel the operation (either a whole separate option or just "leave blank")
 
 You can dual-wield weapons by equipping 2 of the same kind
+(e.g., equip a knife, then get another knife and equip that one, now you have 2 knives)
 
 If you are about to overwrite your save file, the game will ask you
 To confirm, type 'y' (without the quotes)
@@ -599,6 +601,8 @@ Grand wooden double-doors.
 
 You burst through, again, just like what you did to get in a few minutes ago.
 The sunlight shines through the windows, more familliar than the back of your hand.
+The door swings around and slams on the wall it's attached to,
+the sound interrupting whatever moment you were having.
 
 You hear a chuckle, then a taunting voice on the other side of the room.
 "Well, well, well..."
@@ -618,7 +622,6 @@ You hear a chuckle, then a taunting voice on the other side of the room.
         state["search_x"] = state["px"]
         state["search_y"] = state["py"]
 
-    state["dont encounter"] = True
     state["dont visit"] = True
     state["player"] = player
 
@@ -633,6 +636,9 @@ def rand_encounter(state: dict) -> list[Character]:
 
     for i in range(randint(1, RAND_ENCOUNTER_MAX_ACTUAL)):
         enemy_type: int = randint(0, 3)
+        # once the enemy count reaches RAND_ENCOUNTER_MAX_LOOSE,
+        # swarm enemies can push the enemy count to RAND_ENCOUNTER_MAX_ACTUAL
+        if enemy_type != 3 and counter >= RAND_ENCOUNTER_MAX_LOOSE: enemy_type = 3
 
         enemy_weapon: str = ""
         counter: int = 0
@@ -646,18 +652,22 @@ def rand_encounter(state: dict) -> list[Character]:
         for armor in ARMOR_REDUCTIONS:
             if random() < APPLY_ARMOR_CHANCE + scale: enemy_armor.add(armor)
 
-        # this is some VERY VERY questionable code...
-        enemy_creation: object = create_easy
-        if enemy_type == 1: enemy_creation = create_medium
-        if enemy_type == 2: enemy_creation = create_hard
-        if enemy_type == 3 or counter >= RAND_ENCOUNTER_MAX_LOOSE: enemy_creation = create_swarm
+        DIFFICULTY_TABLE: dict[int, Callable[[str, tuple[str, bool], set[str], Inventory], Character]] = {
+            0: create_easy,
+            1: create_medium,
+            2: create_hard,
+            3: create_swarm
+        }
+        enemy_creation: Callable[[str, tuple[str, bool], set[str], Inventory], Character] = DIFFICULTY_TABLE[enemy_type]
 
-        names: list[str] = ["Goblin"]
-        if enemy_type == 1: names[0] = "Orc"
-        if enemy_type == 2: names = ["Zombie", "Skeleton"] 
-        if enemy_type == 3: names[0] = "Imp"
+        NAMES: list[list[str]] = [
+            ["Goblin"],
+            ["Orc"],
+            ["Zombie", "Skeleton"],
+            ["Imp"]
+        ]
 
-        enemy_list.append(enemy_creation(names[randint(0, len(names) - 1)], (enemy_weapon, random() < DUAL_WIELD_CHANCE), enemy_armor, drops(ENCOUNTER_DROPS)))
+        enemy_list.append(enemy_creation(NAMES[enemy_type][randint(0, len(NAMES) - 1)], (enemy_weapon, random() < DUAL_WIELD_CHANCE), enemy_armor, drops(ENCOUNTER_DROPS)))
         if enemy_type != 3: counter += 1
 
     return enemy_list
@@ -768,15 +778,16 @@ before anything worse happens to his people.
             state["dont encounter"] = True
             continue
 
+        # auto-visit
         if at_place and not(state["dont visit"]) and msg == "":
             enter_result: tuple[str, int] = enter_place(state, player, at)
             msg = enter_result[0]
             battle_result = enter_result[1]
-            player = state["player"]
             if state["finished boss"]: break
             continue
         state["dont visit"] = False
 
+        # do you like text art?
         print(
 map_with_player + f"""
 \nLegend:
@@ -807,7 +818,6 @@ SW S SE
                     enter_result: tuple[str, int] = enter_place(state, player, at)
                     msg = enter_result[0]
                     battle_result = enter_result[1]
-                    player = state["player"]
                     if state["finished boss"]: break
                 elif not(state["search_x"] == x and state["search_y"] == y):
                     manage(player, drops(SEARCH_DROPS, -1))
@@ -822,6 +832,7 @@ SW S SE
                 state["dont encounter"] = True
             else: msg = "Invalid option\n"
             if choice != 0: state["dont visit"] = True
+        # move
         elif raw != "":
             INVALID_DIR: str = "Invalid direction\n"
             movement_x: int = 0
@@ -847,20 +858,25 @@ SW S SE
                     else: msg = INVALID_DIR
                 elif len(raw) > 2: msg = INVALID_DIR
 
+            # same condition 2x in a row, yuck
             if msg == "":
                 destination: str = map_char_at(x + movement_x, y + movement_y)
                 if destination == "" or destination == "\n": msg = INVALID_DIR
                 elif destination == OCEAN: msg = INVALID_DIR + "That's the ocean!\n"
                 elif destination == CASTLE and map_char_at(state["search_x"], state["search_y"]) != DEFENSES and not(state["actually finished"]): msg = INVALID_DIR + "You must get through the evil wizard's defenses first\n"
 
+            # everything is clear, you can FINALLY move
             if msg == "":
                 state["px"] += movement_x
                 state["py"] += movement_y
-                state["dont encounter"] = map_char_at(state["px"], state["py"]) in PLACES
         else: msg = "You have to type something...\n"
 
+        # make sure we dont set this to False when it is already True
         if not(state["dont encounter"]):
-            state["dont encounter"] = msg != "" or raw == "" or at_place
+            # make sure you dont get an encounter when you input something invalid or you're at a place
+            state["dont encounter"] = msg != "" or map_char_at(state["px"], state["py"]) in PLACES
+
+            # passive healing when moving
             if not(state["dont encounter"]): player.hp = min(player.hp_cap, player.hp + PASSIVE_HEAL)
 
     if not(state["actually finished"]):
