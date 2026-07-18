@@ -446,7 +446,8 @@ f"""
         # enemies attack
         for enemy in enemies:
             try: enemy.turn(player, player_defending)
-            except InventoryError:
+            # you can't trigger an error when attacking bare-handed, so just unequip everything (shortcut alert!!!)
+            except (InventoryError, EquipmentError):
                 enemy.unequip_weapon()
                 enemy.unequip_weapon()
                 enemy.turn(player, player_defending)
